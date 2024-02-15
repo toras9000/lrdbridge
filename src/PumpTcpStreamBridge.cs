@@ -445,16 +445,19 @@ public class PumpTcpStreamBridge : IAsyncDisposable
                             if (sendSize <= segment.Length) break;
                         }
 
-                        // 送信したデータ量をパイプに通知
-                        var nextPos = result.Buffer.GetPosition(consumed);
-                        reader.AdvanceTo(nextPos);
+                        // 送信できたサイズを超えるものはリングバッファに格納しておく
+                        var afterData = result.Buffer.Slice(consumed);
+                        buffer.Accumulate(afterData);
                     }
                 }
                 catch (OperationCanceledException) when (!this.disposer.IsCancellationRequested)
                 {
-                    // インスタンスの破棄じゃない場合(ブリッジを諦める場合)はデータを捨てるために消化扱い
-                    reader.AdvanceTo(result.Buffer.End);
+                    // インスタンスの破棄じゃない場合(ブリッジを諦める場合)
+                    // そのまま続ける。
                 }
+
+                // バッファ内容は消化する。
+                reader.AdvanceTo(result.Buffer.End);
             }
 
             // パイプが完了済みあれば処理を終える。
